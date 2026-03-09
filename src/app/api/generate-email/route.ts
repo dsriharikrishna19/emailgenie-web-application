@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { openai } from '@/lib/openai';
+import { sarvam } from '@/lib/sarvam';
 
 const SYSTEM_PROMPT = `You are EmailGenie AI — an elite executive email strategist and communication expert.
 
@@ -141,25 +141,37 @@ ${context}
 
 Apply the tone "${tone || 'Professional'}" strictly. Output clean semantic HTML for the body and signature. Return only the JSON object.`;
 
-        const response = await openai.chat.completions.create({
-            model: 'gpt-4o',
+        const response = await sarvam.chat.completions({
+            model: 'sarvam-m',
             messages: [
                 { role: 'system', content: SYSTEM_PROMPT },
                 { role: 'user', content: userPrompt },
             ],
-            response_format: { type: 'json_object' },
-            temperature: 0.8,
         });
 
-        const content = response.choices[0].message.content;
+        const content = response.choices[0]?.message?.content;
         if (!content) {
-            throw new Error('No content returned from OpenAI');
+            throw new Error('No content returned from Sarvam AI');
         }
 
-        return NextResponse.json(JSON.parse(content));
+        // Robust JSON extraction: Find the first '{' and last '}'
+        let cleanedContent = content;
+        const firstBrace = content.indexOf('{');
+        const lastBrace = content.lastIndexOf('}');
+
+        if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+            cleanedContent = content.substring(firstBrace, lastBrace + 1);
+        }
+
+        try {
+            return NextResponse.json(JSON.parse(cleanedContent));
+        } catch (parseError) {
+            console.error('Failed to parse JSON from Sarvam AI. Original content:', content);
+            throw new Error('Invalid JSON format returned from AI');
+        }
     } catch (error: unknown) {
         const message = error instanceof Error ? error.message : 'Failed to generate email';
-        console.error('Error generating email:', error);
+        console.error('Error generating email with Sarvam:', error);
         return NextResponse.json(
             { error: message },
             { status: 500 }
